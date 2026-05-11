@@ -1,6 +1,6 @@
 ---
 title: "CMPivot Queries That Actually Pay Rent"
-description: "A field guide of CMPivot queries I reach for daily. Not the demo-friendly ones — the ones that close tickets at 3 PM on a Friday."
+description: "A field guide of CMPivot queries I reach for daily — the ones that close tickets at 3 PM on a Friday."
 pubDate: 2026-05-11
 category: "SCCM"
 tags: ["cmpivot", "sccm", "mecm", "fleet-management"]
@@ -8,9 +8,9 @@ author: "JD"
 draft: true
 ---
 
-CMPivot is the most underused feature in MECM. Half the admins I talk to either haven't enabled it, or they fired it once during a demo, saw the "Hello World" `OS | summarize count() by Caption` query, and went back to writing collection queries.
+[CMPivot](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot) is real-time fleet introspection inside MECM. You write a [KQL](https://learn.microsoft.com/en-us/kusto/query/)-style query, the site server fans it out to every online client in the targeted collection, and the results come back in seconds. When something breaks in production, the question "is this device affected, and how many others?" needs to be answered in seconds — not "let me build a collection and wait for the next eval cycle."
 
-That's a mistake. CMPivot is real-time fleet introspection. When something breaks in production, the question "is this device affected, and how many others?" needs to be answered in seconds, not "let me build a collection and wait for the next eval cycle." This post is a field guide of the queries I actually reach for. They're not pretty. They pay rent.
+This post is a field guide of the queries I actually reach for. They're not pretty. They pay rent.
 
 ## Why this matters
 
@@ -132,6 +132,13 @@ CMPivot is great. It is not magic. Things it won't help with:
 
 ## The discipline
 
-The reason CMPivot works in production isn't the queries. It's having a running list of them. I keep mine in a plain text file next to `cmtrace.exe` shortcut so I can paste them in without retyping. The first time you write a query is the cost; every subsequent run is free.
+The reason CMPivot works in production isn't the queries. It's having a running list of them. I keep mine in a plain text file next to my `cmtrace.exe` shortcut so I can paste them in without retyping. The first time you write a query is the cost; every subsequent run is free.
 
 If you're staring at MECM in the morning trying to figure out what changed overnight, the answer is usually three CMPivot queries away. Build the muscle. It pays.
+
+## Going further
+
+- [CMPivot in Configuration Manager](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot) — overview, prerequisites, security model.
+- [CMPivot entity and operator reference](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot-changes) — the canonical list of what you can query (`InstalledSoftware`, `Service`, `Registry`, `File`, `EventLog`, etc.) and the supported operators.
+- [KQL quick reference](https://learn.microsoft.com/en-us/kusto/query/) — the broader query language CMPivot draws from. Not every KQL operator works in CMPivot, but the syntax intuition transfers and the `summarize`, `where`, `project`, and `join` patterns are the same.
+- [Configuration Manager PowerShell cmdlet `Invoke-CMScript`](https://learn.microsoft.com/en-us/powershell/module/configurationmanager/invoke-cmscript) — when CMPivot can't do it, an approved script deployed against a collection usually can.

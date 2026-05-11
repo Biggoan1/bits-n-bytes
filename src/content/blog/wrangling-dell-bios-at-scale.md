@@ -8,13 +8,13 @@ author: "JD"
 draft: true
 ---
 
-Most posts about BIOS management stop at "use the Dell BIOS Provider, it's great." It is great. It's also a quarter of the actual job. When you're running 25,000 Dell endpoints across a half-dozen model families, the real questions are: how do you set the admin password without baking secrets into your task sequence, how do you push BIOS settings deterministically at OSD time, how do you survive Dell's "the version string is a string" decisions, and how do you keep your future self sane.
+BIOS management is the floor underneath everything else in endpoint engineering. When you're running 25,000 Dell endpoints across a half-dozen model families, the real questions are: how do you set the admin password without baking secrets into your task sequence, how do you push BIOS settings deterministically at OSD time, how do you survive Dell's "the version string is a string" decisions, and how do you keep your future self sane.
 
-This is what seven years of doing it has taught me.
+The Dell BIOS Provider — a PowerShell module Dell publishes — does a lot of the heavy lifting. The rest you build yourself. This is what seven years of doing it has taught me.
 
 ## The shape of the problem
 
-A Dell laptop in an enterprise environment needs five things from BIOS, all of them annoying:
+A Dell laptop in an enterprise environment needs five things from BIOS:
 
 1. **An admin password** so end users can't disable Secure Boot, change the boot order, or unlock the BIOS to flash whatever they downloaded from a forum.
 2. **A consistent configuration** — Secure Boot on, Legacy ROMs off, virtualization extensions on, USB boot disabled or enabled per policy, the right TPM mode, the right power-on settings.
@@ -67,11 +67,11 @@ Package that with the provider payload as a content source. Detection method: th
 
 ## Password strategy at 25K endpoints
 
-Here's the hard problem: you cannot manually manage 25,000 unique BIOS passwords. You also cannot use one universal password without committing professional malpractice. Three options exist, in order of how I rank them:
+Here's the hard problem: you cannot manually manage 25,000 unique BIOS passwords, and a single shared password across the fleet is a single key that unlocks every device. Three options exist, in order of how I rank them:
 
 1. **A privileged vault** — passwords live in CyberArk/Bitwarden/whatever, retrieved at the moment they're needed via API. Most secure, most plumbing.
 2. **A deterministic derivation** — the BIOS password is computed from a stable per-machine identifier plus an org-only salt, run through a hash. Less plumbing, weaker if the recipe leaks.
-3. **One shared password.** Don't.
+3. **One shared password.** Operationally simple, but it means one leak compromises every endpoint in the fleet at once. Not a real option at this scale.
 
 I'll describe option 2 because it's the pragmatic middle ground most shops actually land on. The pattern, in pseudocode:
 
@@ -211,7 +211,7 @@ switch ($p.ExitCode) {
 }
 ```
 
-Exit code 2 means "needs reboot" — that's a success, not a failure. Many people miss this and treat anything non-zero as broken. Don't.
+Exit code 2 means "needs reboot" — that's a success, not a failure. Treat 0 and 2 as success; everything else is a real failure.
 
 For OSD, organize your content like this:
 
