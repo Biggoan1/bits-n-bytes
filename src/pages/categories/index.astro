@@ -1,0 +1,42 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { CATEGORIES } from '../../content.config';
+
+const posts = await getCollection('blog', ({ data }) => !data.draft);
+const counts = Object.fromEntries(
+  CATEGORIES.map((cat) => [cat, posts.filter((p) => p.data.category === cat).length])
+);
+---
+<BaseLayout title="Categories" description="Browse posts by category.">
+  <section class="hero">
+    <h1>Categories</h1>
+    <p>Posts grouped by area of focus.</p>
+  </section>
+
+  <ul class="cat-list">
+    {CATEGORIES.map((cat) => (
+      <li>
+        <a href={`/categories/${cat.toLowerCase().replace(/\s+/g, '-')}/`}>
+          <strong>{cat}</strong>
+          <span class="faint">{counts[cat]} {counts[cat] === 1 ? 'post' : 'posts'}</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</BaseLayout>
+
+<style>
+  .cat-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+  .cat-list a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    color: var(--fg);
+  }
+  .cat-list a:hover { border-color: var(--accent); color: var(--accent); }
+</style>

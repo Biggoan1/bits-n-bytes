@@ -1,0 +1,103 @@
+---
+import { SITE_TITLE, SITE_TAGLINE, NAV_LINKS } from '../consts';
+import ThemeToggle from './ThemeToggle.astro';
+
+const pathname = Astro.url.pathname.replace(/\/+$/, '') || '/';
+
+function isActive(href: string) {
+  const norm = href.replace(/\/+$/, '') || '/';
+  if (norm === '/') return pathname === '/';
+  return pathname === norm || pathname.startsWith(norm + '/');
+}
+---
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/" class="brand" aria-label={SITE_TITLE}>
+      <span class="brand-mark">&lt;/&gt;</span>
+      <span class="brand-text">
+        <strong>{SITE_TITLE}</strong>
+        <span class="tagline">{SITE_TAGLINE}</span>
+      </span>
+    </a>
+    <nav aria-label="Primary">
+      <ul>
+        {NAV_LINKS.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              class={isActive(link.href) ? 'active' : ''}
+              aria-current={isActive(link.href) ? 'page' : undefined}
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+        <li><ThemeToggle /></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: saturate(180%) blur(8px);
+  }
+  .site-header-inner {
+    max-width: var(--max-width-wide);
+    margin: 0 auto;
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--fg);
+    border-bottom: 0;
+  }
+  .brand:hover { color: var(--accent); }
+  .brand-mark {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.05rem;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+  .brand-text strong { font-size: 1rem; }
+  .tagline { color: var(--fg-faint); font-size: 0.72rem; }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+  }
+  nav a {
+    color: var(--fg-muted);
+    border-bottom: 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  nav a:hover, nav a.active { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .tagline { display: none; }
+    nav ul { gap: 0.75rem; }
+    nav a { font-size: 0.9rem; }
+  }
+</style>

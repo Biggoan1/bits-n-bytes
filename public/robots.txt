@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://bits-n-bytes.org/sitemap-index.xml

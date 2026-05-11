@@ -1,0 +1,88 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+/**
+ * To list a project, add an entry to this array. Leave it empty to keep the
+ * page in its blank "in the workshop" state.
+ *
+ * Example:
+ *   {
+ *     title: 'PackageFoundry',
+ *     summary: 'Claude-based agent for SCCM application packaging.',
+ *     status: 'Active',       // Active | Lab | Archived
+ *     tags: ['SCCM', 'Packaging', 'AI'],
+ *     href: 'https://github.com/your-handle/packagefoundry', // optional
+ *   }
+ */
+const projects: Array<{
+  title: string;
+  summary: string;
+  status: 'Active' | 'Lab' | 'Archived';
+  tags: string[];
+  href?: string;
+}> = [];
+---
+<BaseLayout title="Projects" description="Open work and ongoing experiments from Bits-N-Bytes.">
+  <section class="hero">
+    <h1>Projects</h1>
+    <p>Things I'm building, breaking, and occasionally finishing.</p>
+  </section>
+
+  {projects.length === 0 ? (
+    <section class="empty-state">
+      <h2>In the workshop</h2>
+      <p class="muted">
+        Projects will appear here once they're far enough along to be worth talking about.
+      </p>
+    </section>
+  ) : (
+    <ul class="proj-list">
+      {projects.map((p) => (
+        <li class="proj-card">
+          <header>
+            {p.href ? <h2><a href={p.href}>{p.title}</a></h2> : <h2>{p.title}</h2>}
+            <span class={`badge badge-${p.status.toLowerCase()}`}>{p.status}</span>
+          </header>
+          <p>{p.summary}</p>
+          <div class="tags">
+            {p.tags.map((tag) => <span class="pill">{tag}</span>)}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )}
+</BaseLayout>
+
+<style>
+  .empty-state { margin-top: 1.5rem; }
+  .empty-state h2 { margin-top: 0; }
+
+  .proj-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; }
+  .proj-card {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.4rem;
+  }
+  .proj-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .proj-card h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
+  .proj-card p { margin: 0.3rem 0 0.75rem; color: var(--fg-muted); }
+  .badge {
+    font-size: 0.75rem;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--border);
+    color: var(--fg-faint);
+    background: var(--bg);
+  }
+  .badge-active { color: var(--accent); border-color: var(--accent); }
+  .badge-lab { color: #b45309; border-color: #fbbf24; }
+  .badge-archived { color: var(--fg-faint); border-color: var(--border-strong); }
+  :root[data-theme="dark"] .badge-lab { color: #fde68a; border-color: #b45309; }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+</style>

@@ -1,0 +1,31 @@
+---
+import { SITE_TITLE, GITHUB_REPO_URL, LINKEDIN_URL } from '../consts';
+const year = new Date().getFullYear();
+---
+
+<footer>
+  <div class="footer-inner">
+    <p class="faint">
+      © {year} {SITE_TITLE}. Built with <a href="https://astro.build">Astro</a>.
+      <span class="sep">·</span>
+      <a href={GITHUB_REPO_URL} rel="noopener">GitHub</a>
+      <span class="sep">·</span>
+      <a href={LINKEDIN_URL} rel="noopener">LinkedIn</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 1rem;
+    background: var(--bg-elev);
+  }
+  .footer-inner {
+    max-width: var(--max-width-wide);
+    margin: 0 auto;
+    text-align: center;
+  }
+  p { margin: 0; }
+  .sep { margin: 0 0.35rem; opacity: 0.6; }
+</style>

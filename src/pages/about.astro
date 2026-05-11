@@ -1,0 +1,90 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { GITHUB_PROFILE_URL, GITHUB_HANDLE, GITHUB_REPO_URL, LINKEDIN_URL } from '../consts';
+---
+<BaseLayout title="About" description="About Bits-N-Bytes and the person writing it.">
+  <article class="container-narrow">
+    <h1>About</h1>
+
+    <p class="muted">
+      Bits-N-Bytes is a working notebook for the endpoint-engineering corner of IT — the
+      part that quietly keeps thousands of devices alive while everyone else argues about
+      slide decks.
+    </p>
+
+    <h2>Who I am</h2>
+    <p>
+      I'm John Dykstra — friends call me JD. I've spent twenty-five-plus years in IT,
+      with the last fifteen of them buried elbow-deep in <strong>SCCM/MECM</strong>,
+      <strong>Intune</strong>, <strong>Group Policy</strong>, and <strong>PowerShell</strong>.
+      I currently run client management at scale — a single MECM hierarchy that touches
+      <strong>25,000+ endpoints</strong> across physical, virtual, and cloud-hosted
+      environments.
+    </p>
+    <p>
+      Before that I did the same job at smaller scales: a county government with CJIS
+      and HIPAA in the room, a national professional-services firm with eighteen
+      international distribution points, and a string of smaller shops where the title
+      was "IT" and the scope was "everything that plugs in." That arc — from a one-person
+      single-server shop to a 25K-endpoint enterprise — shapes how I think about every
+      problem on this site.
+    </p>
+
+    <h2>What I actually do</h2>
+    <ul>
+      <li><strong>SCCM / MECM</strong> — site design, OSD task sequences, application packaging, supersedence, content delivery topology, the unglamorous reality of enterprise endpoint management.</li>
+      <li><strong>OS deployment</strong> — building and maintaining images for physical workstations, VMware Horizon, Citrix, Hyper-V, Azure, and Azure DevTest Labs. Windows 7 through 11.</li>
+      <li><strong>Intune & co-management</strong> — Win32 apps, baselines, Autopilot, tenant attach, and the politics of choosing what each platform owns.</li>
+      <li><strong>PowerShell</strong> — I script everything. If I've done it manually twice, the third time is a script. Detection methods, remediation, mass-change tooling, install wrappers.</li>
+      <li><strong>Application packaging</strong> — silent installs, MSI/MST work with Orca, supersedence chains, detection logic that doesn't lie about whether something is actually installed.</li>
+      <li><strong>Patch & vulnerability management</strong> — Patch My PC, CISA KEV-driven remediation, third-party update workflows that don't depend on hope.</li>
+      <li><strong>Hardening</strong> — Windows 11 STIG baselines, GPO and configuration item discipline, browser hardening (Edge, Chrome).</li>
+      <li><strong>Plumbing</strong> — boundary groups, AD discovery, WSUS, distribution points, registry/WMI deep-dives, cmpivot and cmtrace as a way of life.</li>
+    </ul>
+    <p class="muted">
+      Also on the side: WinPE/imaging deep work, a homelab that exists to break things on purpose,
+      and an <a href="/bbq/">AI lab / BBQ pit</a> in roughly that order of weight.
+    </p>
+
+    <h2>Why this site exists</h2>
+    <p>
+      Most platforms reward short-form noise. This is the opposite of that. Posts here
+      take their time, show working code, and assume you came for the technical detail —
+      not the hot take. The audience I'm writing for is the other endpoint engineer
+      reading at 11 PM with a problem to solve.
+    </p>
+    <p>
+      Everything published here has been scrubbed of real server names, IPs, internal
+      domains, and anything client-specific. If you spot something that looks like it
+      shouldn't be public, tell me and I'll fix it.
+    </p>
+
+    <h2>Get in touch</h2>
+    <p>
+      Reach out if you've got a packaging horror story, a homelab question, or a
+      correction. Especially corrections — getting things right matters more than looking
+      right.
+    </p>
+    <ul class="contact">
+      <li><strong>LinkedIn:</strong> <a href={LINKEDIN_URL} rel="noopener">John Dykstra</a></li>
+      <li><strong>GitHub:</strong> <a href={GITHUB_PROFILE_URL} rel="noopener">@{GITHUB_HANDLE}</a></li>
+      <li><strong>This site:</strong> <a href={GITHUB_REPO_URL} rel="noopener">source on GitHub</a></li>
+    </ul>
+
+    <p class="disclaimer faint">
+      All opinions on this site are mine and mine alone — not those of my employer,
+      past or present.
+    </p>
+  </article>
+</BaseLayout>
+
+<style>
+  .contact { list-style: none; padding: 0; }
+  .contact li { margin: 0.35rem 0; }
+  .disclaimer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-style: italic;
+  }
+</style>

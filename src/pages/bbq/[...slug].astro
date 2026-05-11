@@ -1,0 +1,30 @@
+---
+import { getCollection, render } from 'astro:content';
+import BbqPost from '../../layouts/BbqPost.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('bbq', ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+<BbqPost
+  title={post.data.title}
+  description={post.data.description}
+  pubDate={post.data.pubDate}
+  updatedDate={post.data.updatedDate}
+  category={post.data.category}
+  tags={post.data.tags}
+  author={post.data.author}
+  cook={post.data.cook}
+  cookTime={post.data.cookTime}
+  smoker={post.data.smoker}
+  rating={post.data.rating}
+>
+  <Content />
+</BbqPost>

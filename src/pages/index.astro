@@ -1,0 +1,145 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostCard from '../components/PostCard.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import { SITE_TAGLINE, SITE_DESCRIPTION } from '../consts';
+import { CATEGORIES } from '../content.config';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const bbqPosts = (await getCollection('bbq', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const featured = posts.slice(0, 4);
+const recentBbq = bbqPosts.slice(0, 2);
+---
+<BaseLayout title={undefined} description={SITE_DESCRIPTION}>
+  <section class="hero">
+    <h1>Bits-N-Bytes</h1>
+    <p>{SITE_TAGLINE}</p>
+    <p class="muted intro">
+      Field notes from twenty-five years in the endpoint-engineering trenches and the
+      25,000-endpoint MECM hierarchy I run today. SCCM, Intune, PowerShell, WinPE,
+      packaging, the homelab, and the AI tooling that's starting to actually help.
+      No sponsored content. No filler.
+    </p>
+  </section>
+
+  {featured.length > 0 ? (
+    <section>
+      <div class="section-head">
+        <h2>Latest posts</h2>
+        <a href="/blog/" class="faint">All posts →</a>
+      </div>
+      <ul class="post-list">
+        {featured.map((post) => (
+          <PostCard
+            href={`/blog/${post.id}/`}
+            title={post.data.title}
+            description={post.data.description}
+            pubDate={post.data.pubDate}
+            category={post.data.category}
+            tags={post.data.tags}
+          />
+        ))}
+      </ul>
+    </section>
+  ) : (
+    <section class="empty-state">
+      <h2>Just getting started</h2>
+      <p class="muted">First posts landing soon. Check back.</p>
+    </section>
+  )}
+
+  <section class="categories-section">
+    <h2>Topics</h2>
+    <div class="cat-grid">
+      {CATEGORIES.map((cat) => (
+        <a class="cat-card" href={`/categories/${cat.toLowerCase().replace(/\s+/g, '-')}/`}>
+          <strong>{cat}</strong>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  {recentBbq.length > 0 && (
+    <section class="bbq-section">
+      <div class="section-head">
+        <h2>From the pit</h2>
+        <a href="/bbq/" class="faint">All BBQ →</a>
+      </div>
+      <p class="muted bbq-intro">
+        Same engineer, different fuel. Cook logs and opinions about live-fire cooking.
+      </p>
+      <ul class="post-list">
+        {recentBbq.map((post) => (
+          <li class="post-card">
+            <div class="meta">
+              <FormattedDate date={post.data.pubDate} />
+              <span> · </span>
+              <span class="pill bbq-pill">{post.data.category}</span>
+            </div>
+            <h2 class="card-title"><a href={`/bbq/${post.id}/`}>{post.data.title}</a></h2>
+            <p>{post.data.description}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  .intro { max-width: 60ch; margin-top: 0.75rem; }
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 2rem 0 1rem;
+  }
+  .section-head h2 { margin: 0; }
+  .categories-section { margin-top: 3rem; }
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .cat-card {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    color: var(--fg);
+    text-align: center;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .cat-card:hover { border-color: var(--accent); color: var(--accent); }
+
+  .empty-state { margin-top: 1.5rem; }
+  .empty-state h2 { margin-top: 0; }
+  .bbq-section { margin-top: 3rem; }
+  .bbq-intro { margin: -0.25rem 0 1rem; }
+  .card-title { margin: 0 0 0.35rem; font-size: 1.25rem; }
+  .card-title a { color: var(--fg); border: 0; }
+  .card-title a:hover { color: var(--accent); }
+
+  .bbq-pill {
+    background: rgba(220, 38, 38, 0.08);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.3);
+  }
+  :root[data-theme="dark"] .bbq-pill {
+    background: rgba(248, 113, 113, 0.12);
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .bbq-pill {
+      background: rgba(248, 113, 113, 0.12);
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+  }
+</style>

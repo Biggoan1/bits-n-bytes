@@ -1,0 +1,36 @@
+---
+import FormattedDate from './FormattedDate.astro';
+
+interface Props {
+  href: string;
+  title: string;
+  description: string;
+  pubDate: Date;
+  category: string;
+  tags?: string[];
+}
+
+const { href, title, description, pubDate, category, tags = [] } = Astro.props;
+const categorySlug = category.toLowerCase().replace(/\s+/g, '-');
+---
+
+<li class="post-card">
+  <div class="meta">
+    <FormattedDate date={pubDate} />
+    <span> · </span>
+    <a href={`/categories/${categorySlug}/`} class="pill">{category}</a>
+  </div>
+  <h2><a href={href}>{title}</a></h2>
+  <p>{description}</p>
+  {tags.length > 0 && (
+    <div class="tags">
+      {tags.map((tag) => (
+        <a class="pill" href={`/tags/${tag.toLowerCase().replace(/\s+/g, '-')}/`}>#{tag}</a>
+      ))}
+    </div>
+  )}
+</li>
+
+<style>
+  .tags { margin-top: 0.4rem; }
+</style>

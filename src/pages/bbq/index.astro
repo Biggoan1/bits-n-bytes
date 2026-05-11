@@ -1,0 +1,69 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import FormattedDate from '../../components/FormattedDate.astro';
+
+const posts = (await getCollection('bbq', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+<BaseLayout
+  title="BBQ"
+  description="Cook logs, technique notes, and opinions about live-fire cooking. Not endpoint engineering. Sometimes equally nerdy."
+>
+  <section class="hero">
+    <h1>BBQ</h1>
+    <p>Cook logs, technique notes, and the occasional strong opinion about live-fire cooking. Same engineer, different fuel.</p>
+  </section>
+
+  {posts.length === 0 ? (
+    <p class="muted">Fire's still warming up. New cooks landing soon.</p>
+  ) : (
+    <ul class="post-list">
+      {posts.map((post) => (
+        <li class="post-card">
+          <div class="meta">
+            <FormattedDate date={post.data.pubDate} />
+            <span> · </span>
+            <span class="pill bbq-pill">{post.data.category}</span>
+            {post.data.cook && (
+              <>
+                <span> · </span>
+                <span class="faint">{post.data.cook}</span>
+              </>
+            )}
+          </div>
+          <h2><a href={`/bbq/${post.id}/`}>{post.data.title}</a></h2>
+          <p>{post.data.description}</p>
+          {post.data.tags.length > 0 && (
+            <div class="tags">
+              {post.data.tags.map((tag) => (
+                <span class="pill">#{tag}</span>
+              ))}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  )}
+</BaseLayout>
+
+<style>
+  .tags { margin-top: 0.4rem; }
+  .bbq-pill {
+    background: rgba(220, 38, 38, 0.08);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.3);
+  }
+  :root[data-theme="dark"] .bbq-pill {
+    background: rgba(248, 113, 113, 0.12);
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .bbq-pill {
+      background: rgba(248, 113, 113, 0.12);
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+  }
+</style>

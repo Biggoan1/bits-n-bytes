@@ -1,0 +1,33 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const posts = await getCollection('blog', ({ data }) => !data.draft);
+const tagCounts = new Map<string, { display: string; count: number }>();
+for (const post of posts) {
+  for (const tag of post.data.tags) {
+    const slug = tag.toLowerCase().replace(/\s+/g, '-');
+    const entry = tagCounts.get(slug);
+    if (entry) entry.count += 1;
+    else tagCounts.set(slug, { display: tag, count: 1 });
+  }
+}
+const tags = Array.from(tagCounts.entries()).sort((a, b) => b[1].count - a[1].count);
+---
+<BaseLayout title="Tags" description="Browse posts by tag.">
+  <section class="hero">
+    <h1>Tags</h1>
+    <p>{tags.length} {tags.length === 1 ? 'tag' : 'tags'} across the blog.</p>
+  </section>
+
+  <div class="tag-cloud">
+    {tags.map(([slug, { display, count }]) => (
+      <a href={`/tags/${slug}/`} class="pill">#{display} <span class="faint">({count})</span></a>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .pill { font-size: 0.9rem; padding: 0.3rem 0.7rem; }
+</style>
