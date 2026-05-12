@@ -5,7 +5,7 @@ pubDate: 2026-05-12
 category: "SCCM"
 tags: ["visual-studio", "sccm", "powershell", "packaging", "deployment"]
 author: "JD"
-draft: true
+draft: false
 ---
 
 > **Companion repo**: [VisualStudioInstallKit](https://github.com/Biggoan1/VisualStudioInstallKit) — parameterized PowerShell scripts and detection-method templates for the pattern below. Clone it, edit paths, ship.
