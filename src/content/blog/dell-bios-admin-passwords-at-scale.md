@@ -1,6 +1,6 @@
 ---
 title: "Dell BIOS Admin Passwords at Scale"
-description: "How I manage unique Dell BIOS admin passwords without a vault, without a shared password, and without a database to maintain — deterministic derivation paired with a fast helpdesk retrieval tool."
+description: "How I set, clear, and manage unique Dell BIOS admin passwords across a fleet — deterministic derivation, the Dell BIOS Provider, and a helpdesk retrieval tool."
 pubDate: 2026-05-12
 category: "SCCM"
 tags: ["dell", "bios", "powershell", "security"]
@@ -8,107 +8,105 @@ author: "JD"
 draft: true
 ---
 
-Setting a unique Dell BIOS admin password per machine is the right answer for fleet security. The wrong answer is keeping a database of those passwords up to date by hand. This post is how I handle that — what the real constraints are, why I landed on a deterministic derivation rather than a vault, and the small but critical second piece that makes the whole thing actually work day-to-day: a self-service retrieval tool for the helpdesk.
+## Background
 
-## The constraint that shapes everything
+A unique Dell BIOS admin password per machine is the right answer for fleet security. Manually maintaining a password database at any meaningful scale isn't, and a single shared password compromises every endpoint at once if it leaks. A privileged vault would work if the access pattern allowed it, but in this environment helpdesk needs sub-minute access — vault request/approval latency was the wrong fit. So the approach is **deterministic per-machine derivation** from the Dell service tag plus an org-only salt, paired with a small internal app that lets helpdesk look up or clear a password without running PowerShell or knowing the recipe. The exact derivation parameters stay internal — anyone with the recipe and physical access to a chassis can compute its password — so the sample below is intentionally pseudocode.
 
-Before any of the technical choices, the question is: **who needs the BIOS password, and how fast?**
+## Install the Dell BIOS Provider
 
-The realistic answer in most environments: a helpdesk operator, while a user is on the phone, because that user can't boot, or can't change boot order, or hit F2 and got prompted for a password they don't have. The acceptable latency is seconds. Not minutes. Definitely not a Jira ticket and an approval cycle.
+Dell ships the [BIOS Provider](https://www.dell.com/support/kbdoc/en-us/000146531/dell-command-powershell-provider) as a downloadable module. Drop it into both the Windows PowerShell 5.1 and PowerShell 7 module paths so scripts work regardless of which shell triggers them:
 
-That constraint rules out a surprising amount of the security-best-practice catalog.
+```powershell
+param(
+    [Parameter(Mandatory)][ValidateSet('Install','Uninstall')][string]$Action,
+    [string]$SourceVersion = '2.8.0'   # subfolder name where the provider payload lives
+)
 
-## The three patterns
+$ErrorActionPreference = 'Stop'
 
-There are basically three ways to manage BIOS admin passwords across a fleet:
+$targets = @(
+    "$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules\DellBIOSProvider",
+    "$env:ProgramFiles\PowerShell\7\Modules\DellBIOSProvider"
+)
 
-1. **A privileged vault** — passwords are stored in CyberArk/Bitwarden/whatever, retrieved via API at the moment they're needed. Strongest at rest. Often the worst at *speed of access*: typical vault request/approval flows aren't designed for the cadence a helpdesk operator needs when a caller is waiting.
-2. **A deterministic derivation** — the password is *computed* from a stable per-machine identifier plus an org-only salt, run through a hash. Nothing to store. Weaker at rest if the recipe leaks; much faster to operate, and per-device uniqueness still holds.
-3. **One shared password** — operationally simple, but one leak compromises every endpoint in the fleet at once. Not a real option at any meaningful scale.
-
-There is no universal "best." It depends on which constraint dominates. If you can absorb vault latency (or the BIOS-password-retrieval workflow is genuinely rare and operator-driven), vaulting wins. If helpdesk needs to read a password while a user is still on the line, vault latency will fight you every day.
-
-In the environment behind this post, helpdesk speed was the load-bearing constraint, so option 2 is what we use.
-
-## The deterministic derivation pattern
-
-The shape of the derivation, in pseudocode:
-
-```
-identifier = Dell service tag (printed on the chassis)
-salt       = an org-only string only known to the build engineers
-material   = concatenate(identifier, salt, ...)
-password   = take a fixed-length substring of SHA-512(material)
-```
-
-Two properties matter:
-
-- **Deterministic per machine.** Anyone with the script *and* the salt can compute the password for a given chassis. No password database to keep in sync.
-- **Unique per machine.** Cracking one doesn't crack the others, because every machine's input material is different.
-
-The security trade-off is real and worth being honest about. Anyone who knows the recipe and has physical access to a laptop can derive its BIOS password. So **the recipe itself becomes a sensitive secret.** That changes how you operate:
-
-- Store the salt outside the build scripts. Treat it like any other secret.
-- Rotate the salt when build-engineering staff turns over. (Yes, this means every machine's password effectively rotates the next time it goes through OSD. Worth it.)
-- Don't publish the exact algorithm parameters anywhere public — including in a blog post. That's why this section is pseudocode and not a working sample.
-
-## Setting the password through the Dell BIOS Provider
-
-The actual setter call uses Dell's [PowerShell provider module](https://www.dell.com/support/kbdoc/en-us/000146531/dell-command-powershell-provider). Install it into both the Windows PowerShell 5.1 and PowerShell 7 module paths if you support both shells:
-
-```text
-%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\DellBIOSProvider\
-%ProgramFiles%\PowerShell\7\Modules\DellBIOSProvider\
+switch ($Action) {
+    'Install' {
+        foreach ($dest in $targets) {
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            Copy-Item -Path ".\$SourceVersion" -Destination $dest -Recurse -Force
+        }
+    }
+    'Uninstall' {
+        foreach ($dest in $targets) {
+            if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+        }
+    }
+}
 ```
 
-Once it's in place, setting an admin password for the first time:
+Two module paths, one idempotent script. Package it with the provider payload, deploy it as a SCCM Application against the management collection. Detection method: the `.psd1` file present in both module paths.
+
+## Derive the password
+
+The derivation reads the Dell service tag from the BIOS, mixes in an org-only salt, hashes the result, and takes a fixed-length substring as the password. The illustrative shape (using example parameters — see the note below):
+
+```powershell
+function Get-DerivedBIOSPassword {
+    $serviceTag = (Get-CimInstance Win32_BIOS).SerialNumber
+    $salt       = Get-OrgSalt                                  # loaded from a protected store
+
+    # Compose the input. The exact composition is part of the recipe and stays internal.
+    $material   = "$serviceTag$salt"
+
+    # Pick a strong cryptographic hash. The specific algorithm is a choice — keep it internal.
+    $hashAlgo   = [System.Security.Cryptography.HashAlgorithm]::Create('SHA-256')
+    $bytes      = $hashAlgo.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($material))
+    $hex        = ([System.BitConverter]::ToString($bytes)).Replace('-', '')
+
+    # Take a fixed window of the hex output. Offset and length are also part of the recipe.
+    return $hex.Substring(0, 16)
+}
+```
+
+Three things to notice. `$serviceTag` comes from `Win32_BIOS.SerialNumber` on a Dell — the same string printed on the chassis sticker. `$salt` is loaded from somewhere protected (vault, encrypted config, or a build-server-only file); it's the secret that turns a publicly-derivable input into a per-org password. The output is deterministic: the same machine produces the same password every time you run it, which is what makes "look up a password by service tag" work without a database.
+
+The specific composition, hash algorithm, and substring window above are example values. In a real deployment, every one of those is a parameter you choose — and they belong in the same protected store as the salt, not in source control or a blog post. Anyone with the full recipe and physical access to a chassis can compute the password.
+
+## Set the password
+
+Once the password is derived, the provider exposes a path-style API for setting it. The trick is that the call signature changes depending on whether a password is already set:
 
 ```powershell
 Import-Module DellBIOSProvider
 
-$password = Get-DerivedBIOSPassword     # your derivation function
+$password = Get-DerivedBIOSPassword
+$isSet    = (Get-Item DellSMBIOS:\Security\IsAdminPasswordSet).CurrentValue
 
-if (-not (Get-Item DellSMBIOS:\Security\IsAdminPasswordSet).CurrentValue) {
+if (-not $isSet) {
     Set-Item -Path DellSMBIOS:\Security\AdminPassword -Value $password
-} else {
-    # Updating requires the current password
+}
+else {
     Set-Item -Path DellSMBIOS:\Security\AdminPassword -Value $password -Password $currentPassword
 }
 ```
 
-The `IsAdminPasswordSet` check matters. If a password is already set, you must pass the existing one via `-Password` to change it. Skipping the check and always passing `-Password` will fail on a freshly-imaged machine that has no password yet.
+On a freshly-imaged machine where no password exists yet, the second form fails because `-Password` requires an existing password to validate against. On a machine that already has a password, the first form fails because the provider refuses to overwrite without authentication. The `IsAdminPasswordSet` check picks the right branch.
 
-## Clearing the password
+## Clear the password
 
-This one is documented poorly and trips people up. To **clear** a Dell admin password through the provider, you pass an empty string as the new value, and the current password as `-Password`:
+This one is documented poorly. To clear a Dell admin password through the provider, pass an empty string as the new value and the current password as `-Password`:
 
 ```powershell
 Set-Item DellSMBIOS:\Security\AdminPassword -Password $currentPassword ""
 ```
 
-That empty-string-as-value pattern is the only way to do it through the provider. Without it the password won't actually clear.
+Without the empty-string-as-value pattern, the call won't actually clear the password — it'll either error or no-op.
 
-## Why a self-service retrieval tool is the missing half
+## The helpdesk retrieval tool
 
-Per-machine passwords without a fast retrieval path generate help-desk pain on day one. The pattern that closes that loop:
+The internal app is small. It accepts a service tag from a helpdesk operator and exposes two operations:
 
-- An internal interface (web app, internal portal, whatever fits your stack) that wraps the derivation function.
-- Two operations exposed to helpdesk operators:
-  1. **Report password** for a given service tag.
-  2. **Clear password** for a given service tag (triggers a remote script that runs the empty-string call above).
-- Helpdesk operators never run PowerShell, never see the salt, and never have to know how the derivation works. They put in a service tag and get an answer.
-- Access is auditable. Every retrieval is logged with the operator and the requesting context.
+- **Report password** — runs the derivation against the service tag and returns the result.
+- **Clear password** — pushes a script to the target machine that runs the empty-string call above using the derived current password.
 
-That auditing piece is important. The derivation eliminates a password *database*, but it doesn't eliminate the need to know **who looked up which password when**. Building the retrieval tool gives you that audit trail back.
-
-Without this tooling, the deterministic-derivation approach is technically correct but operationally painful — and you'll spend the first month after rollout regretting not having shipped them together.
-
-## What I'd do differently
-
-Looking at the current setup with the benefit of hindsight:
-
-- **Ship the helpdesk retrieval tool in the same change as the password rollout, not after.** Per-machine passwords without a fast retrieval path generate help-desk pain on day one. The retrieval interface, even in a minimal form, has to land at the same time.
-- **Treat the salt as a real secret from day zero.** Document where it lives, who can access it, and how it gets rotated. Don't let it accumulate in build-script comments or in your IDE history.
-- **Build the audit log into the retrieval tool, not as an afterthought.** Every "report" or "clear" should leave a structured record with the operator, the device, and the reason — it's the only paper trail you have for a security-sensitive operation.
-
-The derivation pattern itself is solid. The lessons are all about the tooling around it.
+Operators never run PowerShell, never see the salt, and never need to know how the derivation works. Every call writes an audit record with the operator, the target service tag, the operation, and the reason. Without this layer the deterministic-derivation approach is technically correct but operationally painful — building it in the same change as the password rollout is the difference between a working system and a help-desk fire on day one.

@@ -8,20 +8,9 @@ author: "JD"
 draft: false
 ---
 
-[CMPivot](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot) is real-time fleet introspection inside MECM. You write a [KQL](https://learn.microsoft.com/en-us/kusto/query/)-style query, the site server fans it out to every online client in the targeted collection, and the results come back in seconds. When something breaks in production, the question "is this device affected, and how many others?" needs to be answered in seconds — not "let me build a collection and wait for the next eval cycle."
+[CMPivot](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot) is real-time fleet introspection inside MECM. You write a [KQL](https://learn.microsoft.com/en-us/kusto/query/)-style query, the site server fans it out to every online client in the targeted collection, and the results come back in seconds — live, evaluated by the client agent itself, not a stale hardware-inventory snapshot.
 
-This post is a field guide of the queries I actually reach for. They're not pretty. They pay rent.
-
-## Why this matters
-
-A collection query asks "which devices match these criteria, evaluated against discovery and inventory data that may be hours out of date?" A CMPivot query asks "which devices match these criteria, **right now**, evaluated by the client agent itself?" The difference is enormous when you're triaging an incident.
-
-Two things make CMPivot worth its weight:
-
-1. **It's live.** Clients evaluate the query on the spot. No waiting for MIF to roll up to the site.
-2. **It can see things hardware inventory doesn't.** Files, registry values at runtime, current service state, installed Store apps. The blind spots in `SMS_*` classes get filled in by querying the endpoint directly.
-
-The catch: CMPivot only runs against online clients in the targeted collection. Offline machines get skipped. Plan accordingly.
+The queries below are the ones I actually paste in when something breaks. Caveat up front: CMPivot only runs against online clients in the targeted collection. Offline machines get skipped.
 
 ## Software presence — installed and from the Store
 
@@ -129,12 +118,6 @@ CMPivot is great. It is not magic. Things it won't help with:
 - **Long-running queries.** There's a built-in timeout, and complex queries that hit slow file paths will return partial results. Keep queries fast and specific.
 - **Historical data.** "What was installed two weeks ago?" — that's hardware inventory's job, not CMPivot's. CMPivot is right-now.
 - **Cross-collection joins.** You're stuck with one collection per query. Pivot from there.
-
-## The discipline
-
-The reason CMPivot works in production isn't the queries. It's having a running list of them. I keep mine in a plain text file next to my `cmtrace.exe` shortcut so I can paste them in without retyping. The first time you write a query is the cost; every subsequent run is free.
-
-If you're staring at MECM in the morning trying to figure out what changed overnight, the answer is usually three CMPivot queries away. Build the muscle. It pays.
 
 ## Going further
 
