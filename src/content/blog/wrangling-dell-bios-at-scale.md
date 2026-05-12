@@ -1,6 +1,6 @@
 ---
-title: "Wrangling Dell BIOS Across 25,000 Endpoints"
-description: "BIOS management is the unglamorous half of endpoint engineering. Here's how I handle Dell at scale — provider module, password strategy, OSD-time config, version detection, and the gotchas nobody documents."
+title: "Wrangling Dell BIOS at Scale"
+description: "BIOS management is the unglamorous floor of endpoint engineering. The Dell provider module, password strategy, OSD-time config, version detection, and the gotchas that show up between them."
 pubDate: 2026-05-12
 category: "SCCM"
 tags: ["dell", "bios", "sccm", "osd", "powershell", "packaging"]
@@ -8,9 +8,9 @@ author: "JD"
 draft: true
 ---
 
-BIOS management is the floor underneath everything else in endpoint engineering. When you're running 25,000 Dell endpoints across a half-dozen model families, the real questions are: how do you set the admin password without baking secrets into your task sequence, how do you push BIOS settings deterministically at OSD time, how do you survive Dell's "the version string is a string" decisions, and how do you keep your future self sane.
+BIOS management is the floor underneath everything else in endpoint engineering. Once an environment is large enough that manual touch isn't an option, the real questions are: how do you set the admin password without baking secrets into your task sequence, how do you push BIOS settings deterministically at OSD time, how do you survive Dell's "the version string is a string" decisions, and how do you keep your future self sane.
 
-The Dell BIOS Provider — a PowerShell module Dell publishes — does a lot of the heavy lifting. The rest you build yourself. This is what seven years of doing it has taught me.
+The Dell BIOS Provider — a PowerShell module Dell publishes — does a lot of the heavy lifting. The rest you build yourself. The notes below are what I've landed on after a few years of iterating.
 
 ## The shape of the problem
 
@@ -65,9 +65,9 @@ Stop-Transcript
 
 Package that with the provider payload as a content source. Detection method: the `.psd1` file exists in both module paths. Now it's a regular SCCM application, deployable to your management collection.
 
-## Password strategy at 25K endpoints
+## Password strategy at scale
 
-Here's the hard problem: you cannot manually manage 25,000 unique BIOS passwords, and a single shared password across the fleet is a single key that unlocks every device. Three options exist, in order of how I rank them:
+Here's the hard problem: at any meaningful fleet size, you cannot manually manage unique BIOS passwords per device, and a single shared password across the fleet is a single key that unlocks every endpoint. Three options exist, in order of how I rank them:
 
 1. **A privileged vault** — passwords live in CyberArk/Bitwarden/whatever, retrieved at the moment they're needed via API. Most secure, most plumbing.
 2. **A deterministic derivation** — the BIOS password is computed from a stable per-machine identifier plus an org-only salt, run through a hash. Less plumbing, weaker if the recipe leaks.
@@ -251,7 +251,7 @@ Now you can extend hardware inventory in MECM to scoop that hive, and you have a
 
 ## What I'd change
 
-After seven years and a lot of Dell models:
+Looking at the current setup with the benefit of hindsight:
 
 - **I'd move to vaulted passwords sooner.** The deterministic-derivation approach is fine. A vault is better. The migration cost is real but bounded.
 - **I'd treat the BIOS settings list as data, not code.** A JSON or CSV per model family that the OSD script reads in. Adding a setting becomes editing a config file, not editing the script.
