@@ -5,7 +5,7 @@ pubDate: 2026-05-11
 category: "SCCM"
 tags: ["cmpivot", "sccm", "mecm", "fleet-management"]
 author: "JD"
-draft: true
+draft: false
 ---
 
 [CMPivot](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/manage/cmpivot) is real-time fleet introspection inside MECM. You write a [KQL](https://learn.microsoft.com/en-us/kusto/query/)-style query, the site server fans it out to every online client in the targeted collection, and the results come back in seconds. When something breaks in production, the question "is this device affected, and how many others?" needs to be answered in seconds — not "let me build a collection and wait for the next eval cycle."
