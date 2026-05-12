@@ -12,13 +12,15 @@ draft: true
 
 ## Background
 
-Visual Studio doesn't deploy like a normal MSI. The installer is a small bootstrapper that wants to talk to a Microsoft CDN, but a managed environment generally can't let every dev machine pull half a gigabyte of installer payload through the corporate egress on demand. The fix is an **offline layout**: a single fully-mirrored copy of the installer plus every workload, hosted on a file share, that becomes the install source AND the update channel for all clients. Once the layout exists, four pieces ride on top of it — the **install** package, the **updater** package, **add-in** packages, and **detection methods** that can tell whether a specific workload or component is on a given machine.
+Visual Studio doesn't deploy like a normal MSI. The installer is a small bootstrapper that wants to talk to a Microsoft CDN, but a managed environment generally can't let every dev machine pull tens of gigabytes of installer payload through the corporate egress on demand. The fix is an **offline layout**: a fully-mirrored copy of the installer plus every workload, hosted on a file share, that becomes the install source AND the update channel for all clients. Once the layout exists, four pieces ride on top of it — the **install** package, the **updater** package, **add-in** packages, and **detection methods** that can tell whether a specific workload or component is on a given machine.
 
 This is the full pipeline: layout creation, layout maintenance, install deployment, update deployment, add-in deployment, and the detection-method pattern that ties it together. All paths shown are placeholder UNC paths; substitute your own file share.
 
 ## Create the layout
 
 Run from an elevated prompt on a machine with internet access. Workloads go on the first `--layout` call; the bootstrapper writes a `layout.json` so subsequent updates don't have to re-specify them.
+
+**Path-length constraint:** Microsoft's docs state the layout path must be **fewer than 80 characters** — packages inside the layout extend long enough that exceeding this trips Windows `MAX_PATH` limits and breaks installs in confusing ways. Pick a short root (e.g. `D:\Sources\VS2022\Pro\VSLayout`) or use a symbolic link to mount a deeper share at a shorter path. Reference: [Create a network-based installation of Visual Studio](https://learn.microsoft.com/en-us/visualstudio/install/create-a-network-installation-of-visual-studio).
 
 ```powershell
 $bootstrapper = 'C:\Temp\vs_professional.exe'   # downloaded from aka.ms/vs/stable/vs_professional.exe
@@ -41,7 +43,9 @@ Unblock-File "$layoutPath\vs_professional.exe"
 
 A few things to notice. The `--layout` switch is the bootstrapper's "download this for offline use" mode — it pulls every package for the workloads you specified into the target directory. `--includeRecommended` brings in the recommended optional components for each workload. `--lang en-US` keeps you from pulling 30 GB of language packs you'll never use; layouts get big enough without them. `Unblock-File` clears the Mark-of-the-Web flag Windows puts on internet-downloaded executables — without it, clients running the bootstrapper from the share will hit SmartScreen warnings.
 
-After the layout finishes, copy it onto the file share. Use `xcopy /e /y` or `robocopy /e /mt:16` — the layout is ~50 GB per edition and tens of thousands of small files. PowerShell's `Copy-Item -Recurse` is dramatically slower.
+After the layout finishes, copy it onto the file share. Use `xcopy /e /y` or `robocopy /e /mt:16` — the layout is tens of thousands of small files. PowerShell's `Copy-Item -Recurse` is dramatically slower.
+
+**Plan share capacity.** Microsoft's published guidance is ~40 GB for Community and ~50 GB for Enterprise in a single language, plus ~0.5 GB per additional language. In practice you'll burn far more: multiple editions, multiple language packs, and the accumulated `Archive\` folder that grows each time you update push real-world layouts into the hundreds of gigabytes — and into the terabytes if you maintain layouts for multiple major versions and don't aggressively `--clean`.
 
 ```cmd
 robocopy "C:\Temp\VSLayout-2022-Pro" "\\<file-share>\Sources\Microsoft\VisualStudio\2022\Pro\VSLayout" /e /mt:16
