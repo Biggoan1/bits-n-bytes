@@ -5,7 +5,7 @@ pubDate: 2026-05-12
 category: "SCCM"
 tags: ["dell", "bios", "powershell", "security"]
 author: "JD"
-draft: true
+draft: false
 ---
 
 ## Background
