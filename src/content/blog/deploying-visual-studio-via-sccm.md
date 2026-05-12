@@ -8,6 +8,8 @@ author: "JD"
 draft: true
 ---
 
+> **Companion repo**: [VisualStudioInstallKit](https://github.com/Biggoan1/VisualStudioInstallKit) — parameterized PowerShell scripts and detection-method templates for the pattern below. Clone it, edit paths, ship.
+
 ## Background
 
 Visual Studio doesn't deploy like a normal MSI. The installer is a small bootstrapper that wants to talk to a Microsoft CDN, but a managed environment generally can't let every dev machine pull half a gigabyte of installer payload through the corporate egress on demand. The fix is an **offline layout**: a single fully-mirrored copy of the installer plus every workload, hosted on a file share, that becomes the install source AND the update channel for all clients. Once the layout exists, four pieces ride on top of it — the **install** package, the **updater** package, **add-in** packages, and **detection methods** that can tell whether a specific workload or component is on a given machine.
