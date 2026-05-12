@@ -10,7 +10,7 @@ draft: true
 
 ## Background
 
-A unique Dell BIOS admin password per machine is the right answer for fleet security. Manually maintaining a password database at any meaningful scale isn't, and a single shared password compromises every endpoint at once if it leaks. A privileged vault would work if the access pattern allowed it, but in this environment helpdesk needs sub-minute access — vault request/approval latency was the wrong fit. So the approach is a deterministic per-machine derivation that produces a unique password for each chassis, paired with a small internal app that lets helpdesk look up a password without running PowerShell. The derivation details are intentionally kept internal and aren't covered here; what follows is everything around the derivation — install, set, clear, and the helpdesk tool — that you'd build regardless of how the password itself is generated.
+Every Dell in the fleet should have its own BIOS admin password. A hand-maintained password database doesn't scale, and a single shared password across the fleet compromises every endpoint the moment it leaks. A privileged vault would work if the access pattern allowed it, but in this environment helpdesk needs sub-minute access — vault request/approval latency was the wrong fit. So the approach is a deterministic per-machine derivation that produces a unique password for each chassis, paired with a small internal app that lets helpdesk look up a password without running PowerShell. The derivation details are intentionally kept internal and aren't covered here; what follows is everything around the derivation — install, set, clear, and the helpdesk tool — that you'd build regardless of how the password itself is generated.
 
 ## Install the Dell BIOS Provider
 
