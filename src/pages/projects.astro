@@ -20,7 +20,15 @@ const projects: Array<{
   status: 'Active' | 'Lab' | 'Archived';
   tags: string[];
   href?: string;
-}> = [];
+}> = [
+  {
+    title: 'PackageFoundry',
+    summary:
+      'A portable Claude Code agent that turns a vendor installer into a working SCCM/MECM application — source folder, install/uninstall scripts, detection logic, content distribution, and deployment. Two modes: build-and-import, or build-only for handoff.',
+    status: 'Active',
+    tags: ['SCCM', 'Packaging', 'AI', 'Claude Code', 'PowerShell'],
+  },
+];
 ---
 <BaseLayout title="Projects" description="Open work and ongoing experiments from Bits-N-Bytes.">
   <section class="hero">
