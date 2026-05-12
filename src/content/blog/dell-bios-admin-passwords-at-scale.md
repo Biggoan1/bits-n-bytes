@@ -10,7 +10,7 @@ draft: true
 
 ## Background
 
-A unique Dell BIOS admin password per machine is the right answer for fleet security. Manually maintaining a password database at any meaningful scale isn't, and a single shared password compromises every endpoint at once if it leaks. A privileged vault would work if the access pattern allowed it, but in this environment helpdesk needs sub-minute access — vault request/approval latency was the wrong fit. So the approach is a deterministic per-machine derivation that produces a unique password for each chassis, paired with a small internal app that lets helpdesk look up or clear a password without running PowerShell. The derivation details are intentionally kept internal and aren't covered here; what follows is everything around the derivation — install, set, clear, and the helpdesk tool — that you'd build regardless of how the password itself is generated.
+A unique Dell BIOS admin password per machine is the right answer for fleet security. Manually maintaining a password database at any meaningful scale isn't, and a single shared password compromises every endpoint at once if it leaks. A privileged vault would work if the access pattern allowed it, but in this environment helpdesk needs sub-minute access — vault request/approval latency was the wrong fit. So the approach is a deterministic per-machine derivation that produces a unique password for each chassis, paired with a small internal app that lets helpdesk look up a password without running PowerShell. The derivation details are intentionally kept internal and aren't covered here; what follows is everything around the derivation — install, set, clear, and the helpdesk tool — that you'd build regardless of how the password itself is generated.
 
 ## Install the Dell BIOS Provider
 
@@ -78,9 +78,6 @@ Without the empty-string-as-value pattern, the call won't actually clear the pas
 
 ## The helpdesk retrieval tool
 
-The internal app is small. It accepts a service tag from a helpdesk operator and exposes two operations:
+The internal app is small. A helpdesk operator pastes in a service tag and the tool returns the BIOS admin password for that chassis — it runs the derivation server-side and shows the result. That's the whole interface.
 
-- **Report password** — runs the derivation against the service tag and returns the result.
-- **Clear password** — pushes a script to the target machine that runs the empty-string call above using the derived current password.
-
-Operators never run PowerShell and never need to know how the derivation works. Every call writes an audit record with the operator, the target service tag, the operation, and the reason. Without this layer the deterministic-derivation approach is technically correct but operationally painful — building it in the same change as the password rollout is the difference between a working system and a help-desk fire on day one.
+Operators never run PowerShell and never need to know how the derivation works. Every lookup writes an audit record with the operator, the target service tag, and the reason. Clearing a password isn't an operation the tool exposes; that path stays with engineers using the PowerShell call shown above. Without this lookup layer the deterministic-derivation approach is technically correct but operationally painful — building it in the same change as the password rollout is the difference between a working system and a help-desk fire on day one.
