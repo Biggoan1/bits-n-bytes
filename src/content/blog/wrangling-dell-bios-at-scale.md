@@ -67,13 +67,15 @@ Package that with the provider payload as a content source. Detection method: th
 
 ## Password strategy at scale
 
-Here's the hard problem: at any meaningful fleet size, you cannot manually manage unique BIOS passwords per device, and a single shared password across the fleet is a single key that unlocks every endpoint. Three options exist, in order of how I rank them:
+Here's the hard problem: at any meaningful fleet size, you cannot manually manage unique BIOS passwords per device, and a single shared password across the fleet is a single key that unlocks every endpoint. Three patterns are viable:
 
-1. **A privileged vault** — passwords live in CyberArk/Bitwarden/whatever, retrieved at the moment they're needed via API. Most secure, most plumbing.
-2. **A deterministic derivation** — the BIOS password is computed from a stable per-machine identifier plus an org-only salt, run through a hash. Less plumbing, weaker if the recipe leaks.
-3. **One shared password.** Operationally simple, but it means one leak compromises every endpoint in the fleet at once. Not a real option at this scale.
+1. **A privileged vault** — passwords live in CyberArk/Bitwarden/whatever, retrieved via API at the moment they're needed. Strongest at rest. Often the worst at *speed of access*: typical vault request/approval flows aren't designed for the cadence helpdesk needs when a user is on the phone and can't get into BIOS.
+2. **A deterministic derivation** — the BIOS password is computed from a stable per-machine identifier plus an org-only salt, run through a hash. Weaker at rest if the recipe leaks; much faster to operate, and the per-device uniqueness still holds.
+3. **One shared password** — operationally simple, but one leak compromises every endpoint in the fleet at once. Not a real option at this scale.
 
-I'll describe option 2 because it's the pragmatic middle ground most shops actually land on. The pattern, in pseudocode:
+There is no universal "best." It depends on which constraint dominates. If helpdesk staff need to read a BIOS password while a user is still on the line, the latency of a vault request will fight you. If you can absorb that latency (or the workflow is rare and operator-driven), vaulting wins. In the environment behind this post, helpdesk speed was the load-bearing constraint, so option 2 is what we use — paired with an internal self-service tool that wraps the derivation so helpdesk operators can request a password or trigger a password clear without running PowerShell or knowing the salt.
+
+The derivation pattern, in pseudocode:
 
 ```
 identifier = Dell service tag (printed on the chassis)
@@ -253,7 +255,7 @@ Now you can extend hardware inventory in MECM to scoop that hive, and you have a
 
 Looking at the current setup with the benefit of hindsight:
 
-- **I'd move to vaulted passwords sooner.** The deterministic-derivation approach is fine. A vault is better. The migration cost is real but bounded.
+- **I'd build the helpdesk retrieval tool before rolling out the passwords.** Per-machine passwords without a fast retrieval path generate help-desk pain on day one. A simple internal interface that exposes "report password" and "clear password" against a service tag should ship in the same change as the password derivation itself, not later.
 - **I'd treat the BIOS settings list as data, not code.** A JSON or CSV per model family that the OSD script reads in. Adding a setting becomes editing a config file, not editing the script.
 - **I'd build a model-aware driver/BIOS matrix** before I built the flash machinery. Knowing exactly which model is on which BIOS in production *before* you start pushing updates is half the battle.
 
