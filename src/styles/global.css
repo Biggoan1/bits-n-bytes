@@ -151,17 +151,20 @@ pre {
 
 pre code { background: transparent; border: 0; padding: 0; }
 
-/* Shiki dual-theme support */
-:root[data-theme="dark"] .shiki,
-:root[data-theme="dark"] .shiki span {
+/* Shiki dual-theme support.
+   Astro emits code blocks with class `astro-code` (not `shiki`), so the old
+   selector never matched — in dark mode every token kept its light-theme color
+   (near-black text) on the dark code background and washed out. Match
+   `.astro-code` and swap only the token foreground to the dark palette; the
+   block background stays --bg-code from the `pre` rule above. */
+:root[data-theme="dark"] .astro-code,
+:root[data-theme="dark"] .astro-code span {
   color: var(--shiki-dark) !important;
-  background-color: var(--shiki-dark-bg) !important;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .shiki,
-  :root:not([data-theme="light"]) .shiki span {
+  :root:not([data-theme="light"]) .astro-code,
+  :root:not([data-theme="light"]) .astro-code span {
     color: var(--shiki-dark) !important;
-    background-color: var(--shiki-dark-bg) !important;
   }
 }
 
