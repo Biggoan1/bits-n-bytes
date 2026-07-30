@@ -5,7 +5,7 @@ pubDate: 2026-07-29
 category: "PowerShell"
 tags: ["powershell", "networking", "dhcp", "uac", "winforms", "ps2exe", "sccm", "adcs"]
 author: "JD"
-draft: true
+draft: false
 ---
 
 > **Companion repo**: [IPProvisioner](https://github.com/Biggoan1/IPProvisioner) — the WinForms + CLI app, build/sign script, and SCCM install/uninstall wrapper.
