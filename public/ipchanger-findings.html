@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Changing a PC's IP as a non-admin on hardened Windows 11 — UAC token filtering, Network Configuration Operators, the real root cause, and a teardown of the Simple IP Config tool.">
+<meta name="author" content="JD">
+<title>IPChanger &amp; the Network Configuration Operators problem</title>
+</head>
+<body>
+<title>IPChanger / NCO — Investigation & Findings</title>
+<style>
+  :root{
+    --bg:#e7ecf1; --surface:#fbfcfd; --surface-2:#f1f4f7;
+    --ink:#161b22; --muted:#576372; --faint:#8996a5; --line:#d4dbe2;
+    --accent:#1c6f8b; --accent-ink:#0e4b5f; --copper:#a8501c;
+    --ok:#2f7d4f; --ok-bg:#e4f1e9; --bad:#b23b3b; --bad-bg:#f6e5e5;
+    --warn:#9a6a13; --warn-bg:#f6ecd7; --part:#5a5aa0; --part-bg:#e7e7f4;
+    --code-bg:#eef2f5; --code-ink:#243a44;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"Cascadia Code","SF Mono","JetBrains Mono",Consolas,"Liberation Mono",ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0d1218; --surface:#141b23; --surface-2:#101821;
+      --ink:#e6edf4; --muted:#9aa8b7; --faint:#6a7887; --line:#26313d;
+      --accent:#57b6d3; --accent-ink:#8fd0e5; --copper:#d98a52;
+      --ok:#5cbd82; --ok-bg:#16281f; --bad:#e06d6d; --bad-bg:#2c1919; --warn:#dcac52; --warn-bg:#2a2313;
+      --part:#9a9ae0; --part-bg:#1c1c30; --code-bg:#0c1218; --code-ink:#bcd3dc;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e7ecf1; --surface:#fbfcfd; --surface-2:#f1f4f7; --ink:#161b22; --muted:#576372; --faint:#8996a5; --line:#d4dbe2;
+    --accent:#1c6f8b; --accent-ink:#0e4b5f; --copper:#a8501c;
+    --ok:#2f7d4f; --ok-bg:#e4f1e9; --bad:#b23b3b; --bad-bg:#f6e5e5; --warn:#9a6a13; --warn-bg:#f6ecd7; --part:#5a5aa0; --part-bg:#e7e7f4;
+    --code-bg:#eef2f5; --code-ink:#243a44;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1218; --surface:#141b23; --surface-2:#101821; --ink:#e6edf4; --muted:#9aa8b7; --faint:#6a7887; --line:#26313d;
+    --accent:#57b6d3; --accent-ink:#8fd0e5; --copper:#d98a52;
+    --ok:#5cbd82; --ok-bg:#16281f; --bad:#e06d6d; --bad-bg:#2c1919; --warn:#dcac52; --warn-bg:#2a2313;
+    --part:#9a9ae0; --part-bg:#1c1c30; --code-bg:#0c1218; --code-ink:#bcd3dc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:clamp(20px,5vw,64px) clamp(16px,4vw,40px)}
+  .prose{max-width:72ch}
+  a{color:var(--accent);text-underline-offset:2px}
+  code,kbd{font-family:var(--mono);font-size:.86em;background:var(--code-bg);color:var(--code-ink);
+    padding:.08em .38em;border-radius:4px;border:1px solid var(--line);word-break:break-word}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;text-wrap:balance;line-height:1.18;letter-spacing:-.01em}
+
+  /* Masthead */
+  .mast{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:14px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--copper);margin:0 0 14px}
+  h1{font-size:clamp(28px,5vw,44px);margin:0 0 10px}
+  .dek{font-size:clamp(16px,2.4vw,19px);color:var(--muted);margin:0;max-width:64ch;font-family:var(--sans)}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:22px;font-size:13px}
+  .meta div{display:flex;flex-direction:column;gap:1px}
+  .meta .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .meta .v{color:var(--ink);font-weight:500}
+  .meta .v.res{color:var(--ok);font-weight:700}
+
+  section{margin-top:46px}
+  h2{font-size:clamp(21px,3.2vw,27px);margin:0 0 6px;display:flex;align-items:baseline;gap:12px}
+  h2 .n{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600;
+    letter-spacing:.05em;flex:none}
+  h3{font-size:17px;margin:26px 0 8px;color:var(--accent-ink)}
+  p{margin:12px 0}
+  .lead{color:var(--muted)}
+
+  /* Verdict callout */
+  .verdict{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:10px;padding:20px 22px;margin-top:26px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .verdict h2{font-size:16px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;
+    color:var(--copper);margin:0 0 10px;display:block}
+  .verdict p{margin:8px 0}
+  .verdict strong{color:var(--ink)}
+
+  /* Token comparison */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+  @media(max-width:560px){.split{grid-template-columns:1fr}}
+  .tok{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:var(--surface)}
+  .tok.bad{border-top:3px solid var(--bad)}
+  .tok.ok{border-top:3px solid var(--ok)}
+  .tok h4{margin:0 0 4px;font-family:var(--mono);font-size:13px;letter-spacing:.02em}
+  .tok .lt{font-size:12px;color:var(--faint);font-family:var(--mono);margin-bottom:10px}
+  .tok p{margin:6px 0;font-size:14px;color:var(--muted)}
+  .tok .verdict-line{font-weight:600;font-size:14px;margin-top:10px}
+  .tok.bad .verdict-line{color:var(--bad)}
+  .tok.ok .verdict-line{color:var(--ok)}
+
+  /* Tables */
+  .tbl-scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  thead th{background:var(--surface-2);font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1.5px solid var(--line)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface-2)}
+  td code{font-size:12.5px}
+
+  .chip{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;
+    padding:2px 9px;border-radius:20px;white-space:nowrap}
+  .chip.ok{color:var(--ok);background:var(--ok-bg)}
+  .chip.bad{color:var(--bad);background:var(--bad-bg)}
+  .chip.warn{color:var(--warn);background:var(--warn-bg)}
+  .chip.part{color:var(--part);background:var(--part-bg)}
+
+  /* Approach cards */
+  .approach{border:1px solid var(--line);border-radius:10px;background:var(--surface);
+    padding:16px 20px;margin:12px 0;display:grid;grid-template-columns:auto 1fr auto;gap:4px 16px;align-items:start}
+  .approach .idx{font-family:var(--serif);font-size:26px;color:var(--faint);line-height:1;grid-row:span 2}
+  .approach .ttl{font-weight:650;font-size:15.5px}
+  .approach .desc{grid-column:2;color:var(--muted);font-size:14px;margin-top:3px}
+  .approach .verd{grid-column:3;grid-row:1;align-self:center}
+  @media(max-width:560px){
+    .approach{grid-template-columns:auto 1fr}
+    .approach .verd{grid-column:1 / -1;grid-row:auto;justify-self:start;margin-top:6px}
+    .approach .desc{grid-column:1 / -1}
+  }
+
+  /* Registry / code block */
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+    overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--code-ink);margin:14px 0}
+  pre .cmt{color:var(--faint)}
+
+  .callout{border-radius:10px;padding:16px 20px;margin:18px 0;border:1px solid var(--line)}
+  .callout.warn{background:var(--warn-bg);border-color:transparent}
+  .callout.fix{background:var(--ok-bg);border-color:transparent}
+  .callout h3{margin:0 0 6px;color:inherit}
+  .callout p{margin:6px 0;font-size:14.5px}
+
+  ul.notes{list-style:none;padding:0;margin:14px 0}
+  ul.notes li{position:relative;padding:8px 0 8px 26px;border-bottom:1px solid var(--line);font-size:14.5px;color:var(--muted)}
+  ul.notes li:last-child{border-bottom:none}
+  ul.notes li::before{content:"›";position:absolute;left:6px;top:8px;color:var(--accent);font-family:var(--mono);font-weight:700}
+  ul.notes li strong{color:var(--ink)}
+
+  hr{border:none;border-top:1px solid var(--line);margin:44px 0}
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--faint);font-family:var(--mono);letter-spacing:.02em}
+  .foot-tag{color:var(--copper)}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Engineering Dossier · Windows Least-Privilege Networking</p>
+    <h1>IPChanger &amp; the Network Configuration Operators problem</h1>
+    <p class="dek">Everything we tried to let a non-admin field tech change a PC's IP on a hardened Windows 11 box — why most of it failed, what actually works, and the one registry value that was the real culprit.</p>
+    <div class="meta">
+      <div><span class="k">Objective</span><span class="v">Non-admin IPv4 change for gear provisioning</span></div>
+      <div><span class="k">Test rig</span><span class="v">W104 · Win11 25H2 (26200) · MS hardening baseline</span></div>
+      <div><span class="k">Identities</span><span class="v">winston (user) · x_Winston (xID → NetOps → NCO)</span></div>
+      <div><span class="k">Status</span><span class="v res">Root cause found · Resolved</span></div>
+    </div>
+  </header>
+
+  <div class="verdict prose">
+    <h2>The one-paragraph answer</h2>
+    <p>The blocker was <strong>never</strong> the Network Configuration Operators (NCO) group, <code>netsh</code>, or the "Network Connections" Group Policy node. It was <strong>UAC token filtering, which depends on the logon type</strong> — and on hardened boxes it was compounded by a single registry value, <code>ConsentPromptBehaviorUser&nbsp;=&nbsp;0</code> ("automatically deny standard-user elevation").</p>
+    <p>NCO <em>does</em> grant the IP-change right, but UAC <strong>strips NCO out of interactive logon tokens</strong>. It survives intact in <strong>network and batch</strong> logons. So the same account that fails at the desktop succeeds over SSH or from a scheduled task. The fix on the affected machine was <code>ConsentPromptBehaviorUser 0 → 3</code>. Three viable app architectures fall out of this: a <strong>batch-logon broker</strong>, a <strong>user-mode DHCP self-assign</strong>, and <strong>JEA</strong>.</p>
+  </div>
+
+  <section class="prose">
+    <h2><span class="n">01</span> The problem</h2>
+    <p class="lead">Field technicians — non-technical staff, deliberately given <strong>zero local admin</strong> — need to set a laptop's IPv4 to talk to network equipment on an isolated bench link. Privileged tasks are meant to use a separate <strong>xID</strong> account, which is <em>also</em> not a local admin. The target image is Windows 11 25H2 under a Microsoft/CIS-style hardening baseline. The tool is <code>IPChanger</code>, a PowerShell WinForms app compiled with <code>ps2exe</code>.</p>
+    <p>The obvious answer — put the xID in <strong>Network Configuration Operators</strong>, the built-in group Microsoft ships precisely so non-admins can change TCP/IP — didn't work interactively. Understanding <em>why</em> took the whole investigation below.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span> Core mechanism — logon type decides everything</h2>
+    <p class="prose lead">NCO's SID (<code>S-1-5-32-556</code>) sits on UAC's list of "administrator-equivalent" groups, alongside Backup Operators and Power Users. When UAC builds a <em>filtered</em> token, those groups are set to <strong>deny-only</strong> or dropped entirely. Whether filtering happens is decided by the <strong>logon type</strong>:</p>
+    <div class="split">
+      <div class="tok bad">
+        <h4>Interactive logon</h4>
+        <div class="lt">type 2 — console, RDP, runas/CreateProcessWithLogonW</div>
+        <p>UAC builds a filtered token. NCO is <strong>deny-only / absent</strong> — the app logged <code>ncoInToken=False</code>.</p>
+        <p class="verdict-line">✕ ncpa.cpl &amp; netsh both fail</p>
+      </div>
+      <div class="tok ok">
+        <h4>Network &amp; batch logon</h4>
+        <div class="lt">type 3 — SSH/SMB/PS-remoting · type 4 — scheduled task</div>
+        <p>No UAC filtering. <code>whoami /groups</code> shows NCO as an <strong>"Enabled group"</strong>.</p>
+        <p class="verdict-line">✓ netsh changes the IP, exit 0</p>
+      </div>
+    </div>
+    <p class="prose">This single fact explains everything downstream: every early "it works!" result was measured over SSH (a network logon), and John's original desktop failure was the <em>same</em> root cause — not a separate <code>ncpa.cpl</code> quirk.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span> Capability matrix</h2>
+    <p class="prose lead">Measured on W104 as <code>x_Winston</code> (NCO member) over an unfiltered logon. The takeaways drove the app rewrite: use <code>netsh</code> for addresses, the registry for DNS, and <strong>.NET for enumeration</strong> — never CIM.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Operation</th><th>Result</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>netsh interface ipv4 set/add/delete address</code></td><td><span class="chip ok">WORKS</span></td><td>Applies live; the app's apply/revert path</td></tr>
+          <tr><td><code>netsh interface ipv4 delete route</code></td><td><span class="chip ok">WORKS</span></td><td>Clears the default route a gateway leaves behind</td></tr>
+          <tr><td>Tcpip <code>NameServer</code> registry write</td><td><span class="chip ok">WORKS</span></td><td>NCO has SetValue on the interface key → DNS applies live</td></tr>
+          <tr><td><code>[…]NetworkInformation.NetworkInterface</code> (.NET)</td><td><span class="chip ok">WORKS</span></td><td>The only enumeration path that survives</td></tr>
+          <tr><td><code>netsh … set/add dnsservers</code></td><td><span class="chip bad">FAILS</span></td><td>"requires elevation" — use the registry path instead</td></tr>
+          <tr><td><code>netsh … set interface admin=disabled</code></td><td><span class="chip bad">FAILS</span></td><td>Adapter enable/disable needs real admin</td></tr>
+          <tr><td>Any CIM/WMI — <code>Get-NetAdapter</code>, <code>Get-NetIPAddress</code></td><td><span class="chip bad">FAILS</span></td><td>"Cannot connect to CIM server. Access denied" → app must not use these</td></tr>
+          <tr><td><code>ncpa.cpl</code> adapter properties (interactive)</td><td><span class="chip bad">FAILS</span></td><td>Interactive token = NCO stripped (§02)</td></tr>
+          <tr><td>UAC over-the-shoulder elevation w/ xID</td><td><span class="chip bad">FAILS</span></td><td><code>consent.exe</code> error 740 — elevation <strong>requires local Administrators</strong>; NCO never qualifies</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout" style="background:var(--surface);border-color:var(--line)">
+      <h3>Control experiment — NCO is provably the cause</h3>
+      <p>Removed <code>FAFOLAB\NetOps</code> from the local NCO group → <code>netsh set address</code> flipped to "requires elevation" and the registry write to "access not allowed." Re-adding NetOps restored both <strong>instantly, no reboot</strong> (each logon builds a fresh token). The capability is granted by NCO membership itself.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span> Every architecture we tried</h2>
+    <div class="approach">
+      <div class="idx">1</div>
+      <div class="ttl"><code>-Verb RunAs</code> self-elevation</div>
+      <div class="verd"><span class="chip bad">DEAD END</span></div>
+      <div class="desc">The app's original model. Elevation requires membership in local Administrators; a least-privilege xID has none, so this can never work.</div>
+    </div>
+    <div class="approach">
+      <div class="idx">2</div>
+      <div class="ttl">Credential relaunch — <code>Start-Process -Credential</code> / <code>CreateProcessWithLogonW</code></div>
+      <div class="verd"><span class="chip bad">DEAD END</span></div>
+      <div class="desc">Prompts for the xID and relaunches as it — but that is an <strong>interactive</strong> logon, so NCO is stripped and the app loops on the prompt (<code>ncoInToken=False</code>).</div>
+    </div>
+    <div class="approach">
+      <div class="idx">3</div>
+      <div class="ttl"><code>LogonUser(NETWORK)</code> + <code>ImpersonateLoggedOnUser</code></div>
+      <div class="verd"><span class="chip part">PARTIAL</span></div>
+      <div class="desc">Needs no privilege, but impersonation sets the <em>thread</em> token; a spawned <code>netsh</code> inherits the <em>process</em> token. Only helps for in-process work (the registry DNS write did apply this way).</div>
+    </div>
+    <div class="approach">
+      <div class="idx">4</div>
+      <div class="ttl">Batch-logon broker</div>
+      <div class="verd"><span class="chip ok">WORKS</span></div>
+      <div class="desc">GUI runs as the normal user. On apply: prompt once for the xID, drop a request JSON, register a throwaway task <code>IPChanger-Apply-&lt;stamp&gt;</code> <code>/ru xID /rl LIMITED</code> (a <strong>batch</strong> logon → NCO enabled, and <em>not</em> SYSTEM), run it, poll the result, delete the task. Backend re-validates every field. Sole prereq: grant NetOps "Log on as a batch job" via GPO. Verified end-to-end.</div>
+    </div>
+    <div class="approach">
+      <div class="idx">5</div>
+      <div class="ttl">User-mode DHCP self-assign — shipped as <code>IPProvisioner</code></div>
+      <div class="verd"><span class="chip ok">WORKS</span></div>
+      <div class="desc">Zero privilege: a tiny user-mode DHCP server answers <strong>only the selected NIC's own MAC</strong>, and the SYSTEM DHCP Client service applies the address. Egress pinned via <code>IP_UNICAST_IF</code>. No admin, no NCO, no batch grant. Isolated-link use only (it's a rogue DHCP server on a live net); yields a held lease, not a static. Signed &amp; SCCM-deployed.</div>
+    </div>
+    <div class="approach">
+      <div class="idx">6</div>
+      <div class="ttl">JEA — Just Enough Administration <em>(recommended enterprise answer)</em></div>
+      <div class="verd"><span class="chip warn">PROPOSED</span></div>
+      <div class="desc">A <code>RestrictedRemoteServer</code> endpoint exposing only <code>Set-TechnicianIP</code>, running as a per-session virtual account with <code>RunAsVirtualAccountGroups=@('Network Configuration Operators')</code>. Loopback PS-remoting is a network logon → NCO unfiltered → it works, fully audited. Hurdle: needs WinRM, which the hardening baseline disables (a security conversation, but this is Microsoft's sanctioned least-privilege model).</div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span> The GPO red herring — <code>NC_LanChangeProperties</code></h2>
+    <p class="prose lead">A fair question came up: could the <em>User Config → Administrative Templates → Network → Network Connections</em> policies be an independent cause? On Windows 11 the only policy in that node whose text names NCO is <strong>NC_LanChangeProperties</strong> ("Prohibit access to properties of components of a LAN connection") — Microsoft says enabling it "prohibits Network Configuration Operators from accessing connection components." We tested it directly.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Condition (as x_Winston, NCO enabled)</th><th><code>netsh set address source=static</code></th></tr></thead>
+        <tbody>
+          <tr><td>Policy <strong>not set</strong></td><td><span class="chip ok">exit 0 — applied</span></td></tr>
+          <tr><td>Policy <code>= 1</code>, planted in the live hive &amp; <strong>confirmed visible in session</strong></td><td><span class="chip ok">exit 0 — applied</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><strong>Identical.</strong> The policy governs only the <code>ncpa.cpl</code> GUI "Properties" button (netshell); <code>netsh.exe</code> and every scripted path ignore it. We also confirmed the hardening baseline never sets it, and a standard user can't self-set it (<code>HKCU\Software\Policies</code> is admin/GPO-only). <strong>The Network Connections GPO node is ruled out.</strong></p>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span> Root cause &amp; the real fix</h2>
+    <p class="prose lead">On the affected machine, standard-user elevation was configured to fail silently. Instead of a credential prompt, users got an error and nothing else — the classic symptom of:</p>
+    <pre><span class="cmt"># HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System</span>
+ConsentPromptBehaviorUser = 0   <span class="cmt">← "Automatically deny elevation requests"</span>
+                          → 3   <span class="cmt">← "Prompt for credentials" (Windows default) = FIXED</span>
+
+<span class="cmt"># GPO: Computer Config → … → Security Options →
+# "User Account Control: Behavior of the elevation prompt for standard users"</span></pre>
+    <div class="callout fix">
+      <h3>Why 0 → 3 fixed it</h3>
+      <p>At <code>0</code>, the standard-user elevation path is auto-denied before NCO can even be evaluated — an error with no prompt. At <code>3</code> (or <code>1</code>, prompt on the secure desktop) the flow proceeds and the NCO-backed change resolves. Note the tension: <strong>CIS/STIG baselines recommend <code>0</code></strong>, so a hardened gold image ships pre-broken for this workflow. In the lab baseline we moved <code>0 → 1</code> and set <code>TypeOfAdminApprovalMode 2 → 1</code> (Administrator Protection off, classic Admin Approval Mode).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">07</span> Field notes &amp; gotchas</h2>
+    <ul class="notes">
+      <li><strong>netsh static is additive.</strong> Setting a static address keeps the DHCP lease <em>and</em> adds the manual one. <code>set source=dhcp</code> errors when DHCP is already on — the correct revert is <code>delete address</code>.</li>
+      <li><strong>Gateways leave a route.</strong> Setting a gateway leaves a default route after the address is deleted. Either skip the gateway (same-subnet gear needs none) or <code>delete route</code> explicitly.</li>
+      <li><strong>SeBatchLogonRight is stripped by the baseline.</strong> Only Administrators/Backup Operators/Perf Log Users get it. The broker needs NetOps granted "Log on as a batch job" via GPO — this was the <code>267011</code> "task never ran" failure.</li>
+      <li><strong>CIM/WMI is denied to NCO.</strong> Enumerate adapters with .NET <code>NetworkInterface</code>, never <code>Get-NetAdapter</code>.</li>
+      <li><strong>Testing hazard.</strong> <code>netsh add/set address</code> on a machine's <em>only</em> DHCP NIC can disable DHCP → APIPA (<code>169.254.x</code>) → cut remote access. Always test on a second NIC; recover via the hypervisor console (<code>… set address source=dhcp</code>).</li>
+      <li><strong>Elevation ≠ NCO.</strong> A non-admin can never UAC-elevate, full stop — only local Administrators can. NCO grants the <em>capability</em>, not the ability to elevate.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">08</span> Recommendation</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Option</th><th>Privilege needed</th><th>Scope</th><th>Trade-off</th></tr></thead>
+        <tbody>
+          <tr><td><strong>JEA</strong> (primary)</td><td>None (virtual account = NCO)</td><td>Anywhere</td><td>Enterprise-correct &amp; audited; needs loopback WinRM enabled</td></tr>
+          <tr><td><strong>Batch-logon broker</strong></td><td>Batch-logon right for NetOps</td><td>Anywhere, incl. live LAN</td><td>True static; needs one GPO grant</td></tr>
+          <tr><td><strong>DHCP self-assign</strong> (fallback)</td><td>None at all</td><td>Isolated links only</td><td>Ships today, zero rights; lease not static, "creative" to explain to security</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><strong>Suggested path:</strong> pilot JEA as the primary, least-privilege delegation (the <code>IPProvisioner</code> GUI becomes its friendly client). Keep the signed DHCP self-assign EXE as the fallback for images where WinRM can't be enabled. The broker is the general-purpose middle option when a true static on a live network is required.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">09</span> Addendum — the tool put forward as a counter-example</h2>
+    <p class="prose lead">"Simple IP Config 2.8 works every time in dev." We pulled it apart to see whether it <em>beats</em> the constraint or just <em>avoids</em> it. It's an AutoIt v3 (EA06) compiled, unsigned executable; we extracted its 234&nbsp;KB script. It confirms the findings above rather than contradicting them.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Property</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td>Binary</td><td>AutoIt v3 (EA06) compiled exe · 965&nbsp;KB · <code>ProductVersion 3.3.14.2</code> = the AutoIt runtime, not the app</td></tr>
+          <tr><td>Signature</td><td><span class="chip bad">UNSIGNED</span> — no Authenticode; wouldn't pass a code-signing / SCCM baseline</td></tr>
+          <tr><td>Privilege</td><td><code>#requireadmin</code> (source line 1) — <strong>self-elevates via UAC</strong> at launch (manifest <code>asInvoker</code> + runtime relaunch)</td></tr>
+          <tr><td>Applies IP via</td><td><code>netsh interface ip set address / set·add·delete dns</code> — shells out to <code>cmd</code>, hidden</td></tr>
+          <tr><td>Enumerates via</td><td><strong>WMI</strong> <code>root\cimv2</code> + registry (<code>EnableDHCP</code>)</td></tr>
+          <tr><td>Interface</td><td>GUI only — no command line, can't be scripted or driven headlessly</td></tr>
+          <tr><td>App-control / EDR</td><td><span class="chip bad">BLOCKED</span> — unsigned with no trusted publisher, so <strong>Airlock allowlisting denies it by default</strong> (as would WDAC / AppLocker); AutoIt is a packer class EDR is specifically tuned to flag</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Where it needs admin — and where it doesn't</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Step</th><th>Needs admin?</th><th>On a hardened, non-admin box</th></tr></thead>
+        <tbody>
+          <tr><td>Launch / elevation (<code>#requireadmin</code>)</td><td><span class="chip bad">YES</span></td><td>UAC admin prompt → <strong>auto-denied</strong> under <code>ConsentPromptBehaviorUser=0</code>; NCO can't satisfy it (consent 740)</td></tr>
+          <tr><td>Adapter enumeration (WMI)</td><td><span class="chip bad">YES</span></td><td>"Cannot connect to CIM server. Access denied" → empty list → its own <em>"problem retrieving the adapters"</em> error</td></tr>
+          <tr><td>Apply the address (<code>netsh</code>)</td><td><span class="chip ok">NO</span></td><td>The one step that works under a non-admin NCO <em>network/batch</em> token — exactly what our broker &amp; JEA designs use</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>How it elevates — we looked for a SYSTEM broker; there isn't one</h3>
+    <p class="prose">A reasonable suspicion was that it smuggles privilege via a scheduled task or a SYSTEM helper. It doesn't. The entire 234&nbsp;KB script spawns exactly <strong>one</strong> worker process:</p>
+    <pre>$IPID = Run( @ComSpec &amp; " /k " &amp; $cmd, "", @SW_HIDE, ... )   <span class="cmt">; $cmd = netsh interface ip set address …</span></pre>
+    <p class="prose">That is a plain <code>Run()</code> — <strong>no username, no password, no <code>"runas"</code> verb</strong> — so the child <code>cmd</code>/<code>netsh</code> simply <strong>inherits the app's own token</strong>. The app is elevated for one reason only: <code>#requireadmin</code> on line 1, which relaunches the whole GUI at high integrity. So <code>netsh</code> runs as the <strong>logged-on admin user, not SYSTEM</strong>. The async queue wrapped around it (<code>_AsyncNewCmd</code>) is just a stdout poller so the window doesn't freeze — not a privilege path.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Escalation primitive searched for</th><th>Present?</th></tr></thead>
+        <tbody>
+          <tr><td>Scheduled task / Task Scheduler COM (<code>schtasks</code>, <code>ITaskService</code>)</td><td><span class="chip ok">absent</span></td></tr>
+          <tr><td>Windows service (<code>sc create</code>, <code>CreateService</code>)</td><td><span class="chip ok">absent</span></td></tr>
+          <tr><td><code>CreateProcessAsUser</code> / <code>CreateProcessWithTokenW</code> / <code>LogonUser</code></td><td><span class="chip ok">absent</span></td></tr>
+          <tr><td>Run-as-another-user (<code>RunAs()</code>, <code>"runas"</code> verb) / psexec / named-pipe broker</td><td><span class="chip ok">absent</span></td></tr>
+          <tr><td>SYSTEM / LocalSystem token acquisition</td><td><span class="chip ok">absent</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">The token APIs that <em>do</em> appear in the binary (<code>AdjustTokenPrivileges</code>, <code>ImpersonateSelf</code>, <code>SeDebugPrivilege</code>) are stock AutoIt library includes (<code>Security.au3</code> / <code>Memory.au3</code>) dragged in as dependencies and never called on the apply path. Net: <strong>nothing in it can bridge a missing admin token</strong> — there is no SYSTEM fallback, so on a non-admin box it just fails.</p>
+
+    <div class="verdict prose" style="border-left-color:var(--copper)">
+      <h2>Verdict</h2>
+      <p>It is <strong>approach #1 (self-elevate) in an AutoIt wrapper.</strong> "Works every time in dev" means the dev user is a <strong>local admin</strong> (and/or UAC is relaxed), so <code>#requireadmin</code> gets a full token and <code>netsh</code> runs elevated. Drop the same exe on a non-admin, hardened prod image and it hits the <em>identical</em> UAC wall this whole investigation is about — and its WMI enumeration adds a second, independent failure. It never solves the hard part; it assumes admin, which is invisible when everyone in the dev room already has it.</p>
+      <p>So it isn't a counter-example — it's a <strong>confirmation</strong>. Tellingly, the one part of it that needs no admin is its <code>netsh</code> apply path, which is precisely the mechanism our non-admin designs are built on.</p>
+      <p>And in the production environment it almost certainly never runs at all: an unsigned AutoIt EA06 binary is denied by <strong>application allowlisting (Airlock)</strong> before privilege even enters the picture — no trusted publisher, not on the allowlist, and an interpreter/packer profile that EDR is built to flag. "Works every time in dev" is measuring a machine with allowlisting off and the user holding admin — the two conditions prod is designed to remove.</p>
+    </div>
+  </section>
+
+  <footer>
+    FAFO Lab · investigation W104 (Win11 25H2) · <span class="foot-tag">source of record: /srv/brain/wiki/ipchanger-nco.md · ipprovisioner.md</span>
+  </footer>
+
+</div>
+</body></html>
