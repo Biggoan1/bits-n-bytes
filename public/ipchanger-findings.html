@@ -102,6 +102,8 @@
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover{background:var(--surface-2)}
   td code{font-size:12.5px}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tfoot td{border-top:1.5px solid var(--ink);background:var(--surface-2);font-size:15px}
 
   .chip{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;
     padding:2px 9px;border-radius:20px;white-space:nowrap}
@@ -365,6 +367,28 @@ ConsentPromptBehaviorUser = 0   <span class="cmt">← "Automatically deny elevat
       <p>It is <strong>approach #1 (self-elevate) in an AutoIt wrapper.</strong> "Works every time in dev" means the dev user is a <strong>local admin</strong> (and/or UAC is relaxed), so <code>#requireadmin</code> gets a full token and <code>netsh</code> runs elevated. Drop the same exe on a non-admin, hardened prod image and it hits the <em>identical</em> UAC wall this whole investigation is about — and its WMI enumeration adds a second, independent failure. It never solves the hard part; it assumes admin, which is invisible when everyone in the dev room already has it.</p>
       <p>So it isn't a counter-example — it's a <strong>confirmation</strong>. Tellingly, the one part of it that needs no admin is its <code>netsh</code> apply path, which is precisely the mechanism our non-admin designs are built on.</p>
       <p>And in the production environment it almost certainly never runs at all: an unsigned AutoIt EA06 binary is denied by <strong>application allowlisting (Airlock)</strong> before privilege even enters the picture — no trusted publisher, not on the allowlist, and an interpreter/packer profile that EDR is built to flag. "Works every time in dev" is measuring a machine with allowlisting off and the user holding admin — the two conditions prod is designed to remove.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">10</span> Effort summary</h2>
+    <p class="prose lead">Approximate hours, reconstructed from the working log and spread across 29–31 Jul 2026. The total isn't the point — it's that "just use a tool" quietly assumes away the exact part that took the most work to actually solve.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Phase</th><th>Work</th><th class="num">Est. hrs</th></tr></thead>
+        <tbody>
+          <tr><td>Investigation</td><td>NCO + UAC token filtering by logon type; capability matrix</td><td class="num">5.0</td></tr>
+          <tr><td>Proof</td><td>Control experiments — NCO add/remove causality</td><td class="num">1.0</td></tr>
+          <tr><td>Broker build</td><td>Elevation dead-ends → batch-logon broker; .NET enumeration; netsh apply/revert + bug fixes</td><td class="num">4.0</td></tr>
+          <tr><td>DHCP approach</td><td>User-mode DHCP self-assign breakthrough</td><td class="num">2.5</td></tr>
+          <tr><td>Productionize</td><td>IPProvisioner: ps2exe, code-signing / PKI, SCCM packaging + deploy + real-hardware test</td><td class="num">4.0</td></tr>
+          <tr><td>JEA</td><td>Least-privilege delegation design analysis</td><td class="num">1.5</td></tr>
+          <tr><td>Root cause</td><td><code>ConsentPromptBehaviorUser</code> + <code>NC_LanChangeProperties</code> GPO test on a hardened VM</td><td class="num">2.0</td></tr>
+          <tr><td>Tool teardown</td><td>Simple IP Config decompile + analysis</td><td class="num">1.0</td></tr>
+          <tr><td>Write-up</td><td>Dossier, PDF, publishing</td><td class="num">1.5</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="2"><strong>Total (estimated)</strong></td><td class="num"><strong>22.5</strong></td></tr></tfoot>
+      </table>
     </div>
   </section>
 
