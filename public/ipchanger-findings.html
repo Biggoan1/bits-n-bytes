@@ -162,6 +162,32 @@
     </div>
   </header>
 
+  <section aria-label="Effort summary">
+    <h2>Effort summary</h2>
+    <p class="prose lead">Approximate hours, reconstructed from the working log and spread across 29–31 Jul 2026 (plus the earlier IPChanger work). Dead ends and rejected approaches are counted deliberately — the original self-elevating app, the DHCP build that was ultimately set aside, and the late-night lab firefighting are where most of the real time actually went. "Just use a tool" quietly erases all of it.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Phase</th><th>Work</th><th class="num">Est. hrs</th></tr></thead>
+        <tbody>
+          <tr><td>Original IPChanger</td><td>Self-elevating WinForms app — the first approach, which ultimately didn't fit (RunAs elevation, credential-relaunch loop)</td><td class="num">5.0</td></tr>
+          <tr><td>Investigation</td><td>NCO + UAC token filtering by logon type; the interactive-vs-network discovery; capability matrix</td><td class="num">6.0</td></tr>
+          <tr><td>Proof</td><td>Control experiments — NCO add/remove causality, repeated re-tests</td><td class="num">2.0</td></tr>
+          <tr><td>Broker build</td><td>Two-part batch-logon broker; .NET enumeration; netsh apply/revert + bug fixes</td><td class="num">4.5</td></tr>
+          <tr><td>DHCP app</td><td>User-mode DHCP self-assign breakthrough — built &amp; signed, then set aside as the fallback</td><td class="num">4.0</td></tr>
+          <tr><td>Productionize</td><td>ps2exe, code-signing / enterprise-CA PKI, SCCM packaging + deploy + real-hardware test</td><td class="num">5.0</td></tr>
+          <tr><td>JEA</td><td>Least-privilege delegation design analysis</td><td class="num">2.0</td></tr>
+          <tr><td>Root cause</td><td><code>ConsentPromptBehaviorUser</code> + <code>NC_LanChangeProperties</code> GPO test on a hardened VM</td><td class="num">2.5</td></tr>
+          <tr><td>Late-night debugging</td><td>Lab breakage, DHCP/APIPA recovery, token &amp; registry-hive wrangling — the stuff that only breaks at 1&nbsp;a.m.</td><td class="num">4.0</td></tr>
+          <tr><td>Testing</td><td>Extensive cross-VM + real-hardware validation and re-runs</td><td class="num">3.0</td></tr>
+          <tr><td>Tool teardown</td><td>Simple IP Config decompile + analysis</td><td class="num">1.5</td></tr>
+          <tr><td>Meetings &amp; coordination</td><td>Reviews, back-and-forth, decisions</td><td class="num">2.5</td></tr>
+          <tr><td>Documentation &amp; write-up</td><td>Brain notes, dossier, PDF, publishing</td><td class="num">3.0</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="2"><strong>Total (estimated)</strong></td><td class="num"><strong>45.0</strong></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
   <div class="verdict prose">
     <h2>The one-paragraph answer</h2>
     <p>The blocker was <strong>never</strong> the Network Configuration Operators (NCO) group, <code>netsh</code>, or the "Network Connections" Group Policy node. It was <strong>UAC token filtering, which depends on the logon type</strong> — and on hardened boxes it was compounded by a single registry value, <code>ConsentPromptBehaviorUser&nbsp;=&nbsp;0</code> ("automatically deny standard-user elevation").</p>
@@ -367,32 +393,6 @@ ConsentPromptBehaviorUser = 0   <span class="cmt">← "Automatically deny elevat
       <p>It is <strong>approach #1 (self-elevate) in an AutoIt wrapper.</strong> "Works every time in dev" means the dev user is a <strong>local admin</strong> (and/or UAC is relaxed), so <code>#requireadmin</code> gets a full token and <code>netsh</code> runs elevated. Drop the same exe on a non-admin, hardened prod image and it hits the <em>identical</em> UAC wall this whole investigation is about — and its WMI enumeration adds a second, independent failure. It never solves the hard part; it assumes admin, which is invisible when everyone in the dev room already has it.</p>
       <p>So it isn't a counter-example — it's a <strong>confirmation</strong>. Tellingly, the one part of it that needs no admin is its <code>netsh</code> apply path, which is precisely the mechanism our non-admin designs are built on.</p>
       <p>And in the production environment it almost certainly never runs at all: an unsigned AutoIt EA06 binary is denied by <strong>application allowlisting (Airlock)</strong> before privilege even enters the picture — no trusted publisher, not on the allowlist, and an interpreter/packer profile that EDR is built to flag. "Works every time in dev" is measuring a machine with allowlisting off and the user holding admin — the two conditions prod is designed to remove.</p>
-    </div>
-  </section>
-
-  <section>
-    <h2><span class="n">10</span> Effort summary</h2>
-    <p class="prose lead">Approximate hours, reconstructed from the working log and spread across 29–31 Jul 2026 (plus the earlier IPChanger work). Dead ends and rejected approaches are counted deliberately — the original self-elevating app, the DHCP build that was ultimately set aside, and the late-night lab firefighting are where most of the real time actually went. "Just use a tool" quietly erases all of it.</p>
-    <div class="tbl-scroll">
-      <table>
-        <thead><tr><th>Phase</th><th>Work</th><th class="num">Est. hrs</th></tr></thead>
-        <tbody>
-          <tr><td>Original IPChanger</td><td>Self-elevating WinForms app — the first approach, which ultimately didn't fit (RunAs elevation, credential-relaunch loop)</td><td class="num">5.0</td></tr>
-          <tr><td>Investigation</td><td>NCO + UAC token filtering by logon type; the interactive-vs-network discovery; capability matrix</td><td class="num">6.0</td></tr>
-          <tr><td>Proof</td><td>Control experiments — NCO add/remove causality, repeated re-tests</td><td class="num">2.0</td></tr>
-          <tr><td>Broker build</td><td>Two-part batch-logon broker; .NET enumeration; netsh apply/revert + bug fixes</td><td class="num">4.5</td></tr>
-          <tr><td>DHCP app</td><td>User-mode DHCP self-assign breakthrough — built &amp; signed, then set aside as the fallback</td><td class="num">4.0</td></tr>
-          <tr><td>Productionize</td><td>ps2exe, code-signing / enterprise-CA PKI, SCCM packaging + deploy + real-hardware test</td><td class="num">5.0</td></tr>
-          <tr><td>JEA</td><td>Least-privilege delegation design analysis</td><td class="num">2.0</td></tr>
-          <tr><td>Root cause</td><td><code>ConsentPromptBehaviorUser</code> + <code>NC_LanChangeProperties</code> GPO test on a hardened VM</td><td class="num">2.5</td></tr>
-          <tr><td>Late-night debugging</td><td>Lab breakage, DHCP/APIPA recovery, token &amp; registry-hive wrangling — the stuff that only breaks at 1&nbsp;a.m.</td><td class="num">4.0</td></tr>
-          <tr><td>Testing</td><td>Extensive cross-VM + real-hardware validation and re-runs</td><td class="num">3.0</td></tr>
-          <tr><td>Tool teardown</td><td>Simple IP Config decompile + analysis</td><td class="num">1.5</td></tr>
-          <tr><td>Meetings &amp; coordination</td><td>Reviews, back-and-forth, decisions</td><td class="num">2.5</td></tr>
-          <tr><td>Documentation &amp; write-up</td><td>Brain notes, dossier, PDF, publishing</td><td class="num">3.0</td></tr>
-        </tbody>
-        <tfoot><tr><td colspan="2"><strong>Total (estimated)</strong></td><td class="num"><strong>45.0</strong></td></tr></tfoot>
-      </table>
     </div>
   </section>
 
